@@ -80,10 +80,24 @@ func resourceAwsSpotInstanceRequest() *schema.Resource {
 				ForceNew: true,
 			}
 			s["instance_interruption_behaviour"] = &schema.Schema{
-				Type:     schema.TypeString,
-				Optional: true,
-				Default:  ec2.InstanceInterruptionBehaviorTerminate,
-				ForceNew: true,
+				Type:          schema.TypeString,
+				Optional:      true,
+				Default:       ec2.InstanceInterruptionBehaviorTerminate,
+				ForceNew:      true,
+				Deprecated:    "Replaced by instance_interruption_behavior",
+				ConflictsWith: []string{"instance_interruption_behavior"},
+				ValidateFunc: validation.StringInSlice([]string{
+					ec2.InstanceInterruptionBehaviorTerminate,
+					ec2.InstanceInterruptionBehaviorStop,
+					ec2.InstanceInterruptionBehaviorHibernate,
+				}, false),
+			}
+			s["instance_interruption_behavior"] = &schema.Schema{
+				Type:          schema.TypeString,
+				Optional:      true,
+				Default:       ec2.InstanceInterruptionBehaviorTerminate,
+				ForceNew:      true,
+				ConflictsWith: []string{"instance_interruption_behaviour"},
 				ValidateFunc: validation.StringInSlice([]string{
 					ec2.InstanceInterruptionBehaviorTerminate,
 					ec2.InstanceInterruptionBehaviorStop,
@@ -103,10 +117,18 @@ func resourceAwsSpotInstanceRequestCreate(d *schema.ResourceData, meta interface
 		return err
 	}
 
+	instanceInterruptionBehavior := ""
+	if v, ok := d.GetOk("instance_interruption_behavior"); ok {
+		instanceInterruptionBehavior = v.(string)
+	}
+	if v, ok := d.GetOk("instance_interruption_behaviour"); ok {
+		instanceInterruptionBehavior = v.(string)
+	}
+
 	spotOpts := &ec2.RequestSpotInstancesInput{
 		SpotPrice: aws.String(d.Get("spot_price").(string)),
 		Type:      aws.String(d.Get("spot_type").(string)),
-		InstanceInterruptionBehavior: aws.String(d.Get("instance_interruption_behaviour").(string)),
+		InstanceInterruptionBehavior: aws.String(instanceInterruptionBehavior),
 
 		// Though the AWS API supports creating spot instance requests for multiple
 		// instances, for TF purposes we fix this to one instance per request.
@@ -138,7 +160,7 @@ func resourceAwsSpotInstanceRequestCreate(d *schema.ResourceData, meta interface
 	}
 
 	// Placement GroupName can only be specified when instanceInterruptionBehavior is not set or set to 'terminate'
-	if v, exists := d.GetOkExists("instance_interruption_behaviour"); v.(string) == ec2.InstanceInterruptionBehaviorTerminate || !exists {
+	if instanceInterruptionBehavior == "" || instanceInterruptionBehavior == ec2.InstanceInterruptionBehaviorTerminate {
 		spotOpts.LaunchSpecification.Placement = instanceOpts.SpotPlacement
 	}
 

@@ -407,6 +407,19 @@ func TestAccAWSSpotInstanceRequestInterruptStop(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						"aws_spot_instance_request.foo", "spot_request_state", "active"),
 					resource.TestCheckResourceAttr(
+						"aws_spot_instance_request.foo", "instance_interruption_behavior", "stop"),
+				),
+			},
+			{
+				Config: testAccAWSSpotInstanceRequestInterruptConfigDeprecated("stop"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAWSSpotInstanceRequestExists(
+						"aws_spot_instance_request.foo", &sir),
+					resource.TestCheckResourceAttr(
+						"aws_spot_instance_request.foo", "spot_bid_status", "fulfilled"),
+					resource.TestCheckResourceAttr(
+						"aws_spot_instance_request.foo", "spot_request_state", "active"),
+					resource.TestCheckResourceAttr(
 						"aws_spot_instance_request.foo", "instance_interruption_behaviour", "stop"),
 				),
 			},
@@ -424,6 +437,19 @@ func TestAccAWSSpotInstanceRequestInterruptHibernate(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccAWSSpotInstanceRequestInterruptConfig("hibernate"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAWSSpotInstanceRequestExists(
+						"aws_spot_instance_request.foo", &sir),
+					resource.TestCheckResourceAttr(
+						"aws_spot_instance_request.foo", "spot_bid_status", "fulfilled"),
+					resource.TestCheckResourceAttr(
+						"aws_spot_instance_request.foo", "spot_request_state", "active"),
+					resource.TestCheckResourceAttr(
+						"aws_spot_instance_request.foo", "instance_interruption_behavior", "hibernate"),
+				),
+			},
+			{
+				Config: testAccAWSSpotInstanceRequestInterruptConfigDeprecated("hibernate"),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckAWSSpotInstanceRequestExists(
 						"aws_spot_instance_request.foo", &sir),
@@ -640,7 +666,25 @@ func testAccAWSSpotInstanceRequestConfig_getPasswordData(rInt int) string {
 	`, rInt)
 }
 
-func testAccAWSSpotInstanceRequestInterruptConfig(interruption_behavior string) string {
+func testAccAWSSpotInstanceRequestInterruptConfig(interruptionBehavior string) string {
+	return fmt.Sprintf(`
+	resource "aws_spot_instance_request" "foo" {
+		ami = "ami-19e92861"
+		instance_type = "c5.large"
+
+		// base price is $0.067 hourly, so bidding above that should theoretically
+		// always fulfill
+		spot_price = "0.07"
+
+		// we wait for fulfillment because we want to inspect the launched instance
+		// and verify termination behavior
+		wait_for_fulfillment = true
+
+		instance_interruption_behavior = "%s"
+	}`, interruptionBehavior)
+}
+
+func testAccAWSSpotInstanceRequestInterruptConfigDeprecated(interruptionBehavior string) string {
 	return fmt.Sprintf(`
 	resource "aws_spot_instance_request" "foo" {
 		ami = "ami-19e92861"
@@ -655,5 +699,5 @@ func testAccAWSSpotInstanceRequestInterruptConfig(interruption_behavior string) 
 		wait_for_fulfillment = true
 
 		instance_interruption_behaviour = "%s"
-	}`, interruption_behavior)
+	}`, interruptionBehavior)
 }
